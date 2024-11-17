@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "wynnlimbo",
+  "version": "${version}",
+  "name": "WynnLimbo",
+  "description": "Adds a limbo area to occupy you while queueing for worlds!",
+  "authors": [],
+  "contact": {},
+  "license": "GPL-3.0",
+  "icon": "assets/wynnlimbo/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "goldenshadow.wynnlimbo.client.WynnlimboClient"
+    ],
+    "main": [
+      "goldenshadow.wynnlimbo.Wynnlimbo"
+    ]
+  },
+  "mixins": [
+    "wynnlimbo.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
