@@ -1,0 +1,12 @@
+accessWidener v2 named
+accessible field net/minecraft/network/packet/s2c/play/ChunkData heightmap Lnet/minecraft/nbt/NbtCompound;
+accessible field net/minecraft/network/packet/s2c/play/ChunkData sectionsData [B
+accessible field net/minecraft/network/packet/s2c/play/ChunkData blockEntities Ljava/util/List;
+accessible class net/minecraft/network/packet/s2c/play/ChunkData$BlockEntityData
+accessible field net/minecraft/network/packet/s2c/play/ChunkData$BlockEntityData localXz I
+accessible field net/minecraft/network/packet/s2c/play/ChunkData$BlockEntityData y I
+accessible field net/minecraft/network/packet/s2c/play/ChunkData$BlockEntityData type Lnet/minecraft/block/entity/BlockEntityType;
+accessible field net/minecraft/network/packet/s2c/play/ChunkData$BlockEntityData nbt Lnet/minecraft/nbt/NbtCompound;
+accessible field net/minecraft/block/entity/BlockEntityType blocks Ljava/util/Set;
+accessible method net/minecraft/network/packet/s2c/play/ChunkData$BlockEntityData <init> (IILnet/minecraft/block/entity/BlockEntityType;Lnet/minecraft/nbt/NbtCompound;)V
+accessible method net/minecraft/network/ClientConnection handlePacket (Lnet/minecraft/network/packet/Packet;Lnet/minecraft/network/listener/PacketListener;)V

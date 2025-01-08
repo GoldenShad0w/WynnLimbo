@@ -3,9 +3,10 @@
   "minVersion": "0.8",
   "package": "goldenshadow.wynnlimbo.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [
-  ],
+  "mixins": [],
   "client": [
+    "ClientPlayNetworkHandlerMixin",
+    "DimensionEffectsMixin"
   ],
   "injectors": {
     "defaultRequire": 1
