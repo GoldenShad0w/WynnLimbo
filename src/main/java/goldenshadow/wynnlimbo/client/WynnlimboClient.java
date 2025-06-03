@@ -118,6 +118,7 @@ public class WynnlimboClient implements ClientModInitializer {
             )))));
         }));
          */
+
     }
 
     public static void onQueueEnter() {
@@ -143,7 +144,7 @@ public class WynnlimboClient implements ClientModInitializer {
                 client.world.addEntity(entity);
             });
             client.player.setPos(31, 118, 28);
-            client.world.setTimeOfDay(6000);
+            client.world.setTime(client.world.getTime(), 6000, true);
             client.player.removeStatusEffect(StatusEffects.BLINDNESS);
             client.player.setMovementSpeed(0.7f); // <- reset to default because otherwise entering queue from a high walkspeed class will make you be really fast
             client.player.setReducedDebugInfo(false);
