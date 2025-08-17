@@ -6,7 +6,8 @@
   "mixins": [],
   "client": [
     "ClientPlayNetworkHandlerMixin",
-    "DimensionEffectsMixin"
+    "DimensionEffectsMixin",
+    "ServerResourcePackLoaderMixin"
   ],
   "injectors": {
     "defaultRequire": 1

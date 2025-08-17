@@ -48,19 +48,19 @@ public class Deserializer {
             ChunkDataS2CPacket packet = (ChunkDataS2CPacket) unsafe.allocateInstance(ChunkDataS2CPacket.class);
 
 
-            Field chunkXField = packet.getClass().getDeclaredField("field_12236"); //chunkX if unobfuscated, else field_12236
+            Field chunkXField = packet.getClass().getDeclaredField(runningFromIntelliJ() ? "chunkX" : "field_12236"); //chunkX if yarn mapping, else field_12236
             chunkXField.setAccessible(true);
             chunkXField.set(packet, jsonObject.get("chunkX").getAsInt());
 
-            Field chunkZField = packet.getClass().getDeclaredField("field_12235"); //chunkZ if yarn mapping, else field_12235
+            Field chunkZField = packet.getClass().getDeclaredField(runningFromIntelliJ() ? "chunkZ" : "field_12235"); //chunkZ if yarn mapping, else field_12235
             chunkZField.setAccessible(true);
             chunkZField.set(packet, jsonObject.get("chunkZ").getAsInt());
 
-            Field chunkDataField = packet.getClass().getDeclaredField("field_34870"); //chunkData if yarn mapping, else field_34870
+            Field chunkDataField = packet.getClass().getDeclaredField(runningFromIntelliJ() ? "chunkData" : "field_34870"); //chunkData if yarn mapping, else field_34870
             chunkDataField.setAccessible(true);
             chunkDataField.set(packet, deserializeChunkData(jsonObject.get("chunkData")));
 
-            Field lightDataField = packet.getClass().getDeclaredField("field_34871"); //lightData if yarn mapping, else field_34871
+            Field lightDataField = packet.getClass().getDeclaredField(runningFromIntelliJ() ? "lightData" : "field_34871"); //lightData if yarn mapping, else field_34871
             lightDataField.setAccessible(true);
             lightDataField.set(packet, gson.fromJson(jsonObject.get("lightData"), new TypeToken<LightData>(){}.getType()));
 
@@ -181,6 +181,10 @@ public class Deserializer {
             case "vault" -> BlockEntityType.VAULT;
             default -> throw new RuntimeException("invalid block entity type!");
         };
+    }
+
+    private boolean runningFromIntelliJ() {
+        return false;
     }
 
     public record Result(Set<ChunkDataS2CPacket> chunkData, Set<NbtCompound> entities) {}
