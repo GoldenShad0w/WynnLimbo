@@ -1,9 +1,6 @@
 package goldenshadow.wynnlimbo.mixin;
 
 import goldenshadow.wynnlimbo.client.WynnlimboClient;
-import net.minecraft.client.resource.server.ReloadScheduler;
-import net.minecraft.client.resource.server.ServerResourcePackLoader;
-import net.minecraft.resource.ResourcePackProfile;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -11,14 +8,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.nio.file.Path;
 import java.util.List;
+import net.minecraft.client.resources.server.DownloadedPackSource;
+import net.minecraft.client.resources.server.PackReloadConfig;
+import net.minecraft.server.packs.repository.Pack;
 
-@Mixin(ServerResourcePackLoader.class)
+@Mixin(DownloadedPackSource.class)
 public class ServerResourcePackLoaderMixin {
 
-    @Inject(at = @At("TAIL"), method = "toProfiles")
-    private void load(List<ReloadScheduler.PackInfo> packs, CallbackInfoReturnable<List<ResourcePackProfile>> cir) {
+    @Inject(at = @At("TAIL"), method = "loadRequestedPacks")
+    private void load(List<PackReloadConfig.IdAndPath> packs, CallbackInfoReturnable<List<Pack>> cir) {
         packs.stream()
-                .map(ReloadScheduler.PackInfo::path)
+                .map(PackReloadConfig.IdAndPath::path)
                 .map(Path::toFile)
                 .forEach(WynnlimboClient.customModelFixer::buildFix);
     }

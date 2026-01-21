@@ -4,19 +4,25 @@ import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 import com.mojang.brigadier.StringReader;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import net.minecraft.block.entity.BlockEntityType;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.StringNbtReader;
-import net.minecraft.network.packet.s2c.play.ChunkData;
-import net.minecraft.network.packet.s2c.play.ChunkDataS2CPacket;
-import net.minecraft.network.packet.s2c.play.LightData;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.storage.TagValueInput;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.TagParser;
+import net.minecraft.network.protocol.game.ClientboundLevelChunkPacketData;
+import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
+import net.minecraft.network.protocol.game.ClientboundLightUpdatePacketData;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 
 public class Deserializer {
 
@@ -28,15 +34,15 @@ public class Deserializer {
 
     public Result deserialize(JsonElement json) throws ReflectiveOperationException, CommandSyntaxException {
         JsonObject jsonObject = json.getAsJsonObject();
-        Set<ChunkDataS2CPacket> chunks = deserializeChunks(jsonObject.getAsJsonArray("chunks"));
-        Set<NbtCompound> entities = deserializeEntities(jsonObject.getAsJsonArray("entities"));
+        Set<ClientboundLevelChunkWithLightPacket> chunks = deserializeChunks(jsonObject.getAsJsonArray("chunks"));
+        Set<CompoundTag> entities = deserializeEntities(jsonObject.getAsJsonArray("entities"));
 
         return new Result(chunks, entities);
     }
 
-    private Set<ChunkDataS2CPacket> deserializeChunks(JsonArray chunkArray) throws ReflectiveOperationException, CommandSyntaxException {
+    private Set<ClientboundLevelChunkWithLightPacket> deserializeChunks(JsonArray chunkArray) throws ReflectiveOperationException, CommandSyntaxException {
 
-        Set<ChunkDataS2CPacket> set = new HashSet<>();
+        Set<ClientboundLevelChunkWithLightPacket> set = new HashSet<>();
 
         for (JsonElement jsonElement : chunkArray) {
             JsonObject jsonObject = jsonElement.getAsJsonObject();
@@ -45,14 +51,14 @@ public class Deserializer {
             f.setAccessible(true);
             Unsafe unsafe = (Unsafe) f.get(null);
 
-            ChunkDataS2CPacket packet = (ChunkDataS2CPacket) unsafe.allocateInstance(ChunkDataS2CPacket.class);
+            ClientboundLevelChunkWithLightPacket packet = (ClientboundLevelChunkWithLightPacket) unsafe.allocateInstance(ClientboundLevelChunkWithLightPacket.class);
 
 
-            Field chunkXField = packet.getClass().getDeclaredField(runningFromIntelliJ() ? "chunkX" : "field_12236"); //chunkX if yarn mapping, else field_12236
+            Field chunkXField = packet.getClass().getDeclaredField(runningFromIntelliJ() ? "x" : "field_12236"); //x if yarn mapping, else field_12236
             chunkXField.setAccessible(true);
             chunkXField.set(packet, jsonObject.get("chunkX").getAsInt());
 
-            Field chunkZField = packet.getClass().getDeclaredField(runningFromIntelliJ() ? "chunkZ" : "field_12235"); //chunkZ if yarn mapping, else field_12235
+            Field chunkZField = packet.getClass().getDeclaredField(runningFromIntelliJ() ? "z" : "field_12235"); //z if yarn mapping, else field_12235
             chunkZField.setAccessible(true);
             chunkZField.set(packet, jsonObject.get("chunkZ").getAsInt());
 
@@ -62,7 +68,7 @@ public class Deserializer {
 
             Field lightDataField = packet.getClass().getDeclaredField(runningFromIntelliJ() ? "lightData" : "field_34871"); //lightData if yarn mapping, else field_34871
             lightDataField.setAccessible(true);
-            lightDataField.set(packet, gson.fromJson(jsonObject.get("lightData"), new TypeToken<LightData>(){}.getType()));
+            lightDataField.set(packet, deserializeLightDataPacket(jsonObject.get("lightData")));
 
             set.add(packet);
         }
@@ -70,25 +76,79 @@ public class Deserializer {
     }
 
 
-    private ChunkData deserializeChunkData(JsonElement json) throws ReflectiveOperationException, CommandSyntaxException {
+    private ClientboundLightUpdatePacketData deserializeLightDataPacket(JsonElement json)  throws ReflectiveOperationException {
+        JsonObject jsonObject = json.getAsJsonObject();
+        Field f = Unsafe.class.getDeclaredField("theUnsafe");
+        f.setAccessible(true);
+        Unsafe unsafe = (Unsafe) f.get(null);
+
+        ClientboundLightUpdatePacketData lightData = (ClientboundLightUpdatePacketData) unsafe.allocateInstance(ClientboundLightUpdatePacketData.class);
+
+        Field skyYMaskField = lightData.getClass().getDeclaredField(runningFromIntelliJ() ? "skyYMask" : "field_34873");
+        skyYMaskField.setAccessible(true);
+        skyYMaskField.set(lightData, deserializeBitSet(jsonObject.getAsJsonArray("skyYMask")));
+
+        Field blockYMaskField = lightData.getClass().getDeclaredField(runningFromIntelliJ() ? "blockYMask" : "field_34874");
+        blockYMaskField.setAccessible(true);
+        blockYMaskField.set(lightData, deserializeBitSet(jsonObject.getAsJsonArray("blockYMask")));
+
+        Field emptySkyYMaskField = lightData.getClass().getDeclaredField(runningFromIntelliJ() ? "emptySkyYMask" : "field_34875");
+        emptySkyYMaskField.setAccessible(true);
+        emptySkyYMaskField.set(lightData, deserializeBitSet(jsonObject.getAsJsonArray("emptySkyYMask")));
+
+        Field emptyBlockYMaskField = lightData.getClass().getDeclaredField(runningFromIntelliJ() ? "emptyBlockYMask" : "field_34876");
+        emptyBlockYMaskField.setAccessible(true);
+        emptyBlockYMaskField.set(lightData, deserializeBitSet(jsonObject.getAsJsonArray("emptyBlockYMask")));
+
+        Field skyUpdates = lightData.getClass().getDeclaredField(runningFromIntelliJ() ? "skyUpdates" : "field_34877");
+        skyUpdates.setAccessible(true);
+        skyUpdates.set(lightData, deserializeByteArrayList(jsonObject.getAsJsonArray("skyUpdates")));
+
+        Field blockUpdates = lightData.getClass().getDeclaredField(runningFromIntelliJ() ? "blockUpdates" : "field_34878");
+        blockUpdates.setAccessible(true);
+        blockUpdates.set(lightData, deserializeByteArrayList(jsonObject.getAsJsonArray("blockUpdates")));
+
+        return lightData;
+    }
+
+    private List<byte[]> deserializeByteArrayList(JsonArray jsonArray) {
+        List<byte[]> list = new ArrayList<>();
+        for (JsonElement e : jsonArray) {
+            JsonArray inner = e.getAsJsonArray();
+            byte[] array = new byte[inner.size()];
+            for (int i = 0; i < array.length; i++) {
+                array[i] = inner.get(i).getAsByte();
+            }
+            list.add(array);
+        }
+        return list;
+    }
+
+    private BitSet deserializeBitSet(JsonArray jsonArray) {
+        long[] array = new long[jsonArray.size()];
+        for (int i = 0; i < jsonArray.size(); i++) {
+            array[i] = jsonArray.get(i).getAsLong();
+        }
+        return BitSet.valueOf(array);
+    }
+
+    private ClientboundLevelChunkPacketData deserializeChunkData(JsonElement json) throws ReflectiveOperationException, CommandSyntaxException {
         JsonObject jsonObject = json.getAsJsonObject();
 
         Field f = Unsafe.class.getDeclaredField("theUnsafe");
         f.setAccessible(true);
         Unsafe unsafe = (Unsafe) f.get(null);
 
-        ChunkData chunkData = (ChunkData) unsafe.allocateInstance(ChunkData.class);
+        ClientboundLevelChunkPacketData chunkData = (ClientboundLevelChunkPacketData) unsafe.allocateInstance(ClientboundLevelChunkPacketData.class);
 
         for (Field field : chunkData.getClass().getDeclaredFields()) {
-            if (field.getType().isAssignableFrom(NbtCompound.class)) {
+            if (field.getType().isAssignableFrom(Map.class)) {
                 field.setAccessible(true);
-                StringReader stringReader = new StringReader(jsonObject.get("heightmap").toString());
-                String jsonString = stringReader.readString();
-                field.set(chunkData, StringNbtReader.parse(jsonString));
+                field.set(chunkData, gson.fromJson(jsonObject.get("heightmaps"), new TypeToken<Map<Heightmap.Types, long[]>>(){}.getType()));
                 continue;
             }
             if (field.getType().isAssignableFrom(byte[].class)) {
-                JsonArray array = jsonObject.getAsJsonArray("sectionsData");
+                JsonArray array = jsonObject.getAsJsonArray("buffer");
                 byte[] byteArray = new byte[array.size()];
                 for (int i = 0; i < byteArray.length; i++) {
                     byteArray[i] = array.get(i).getAsByte();
@@ -98,7 +158,7 @@ public class Deserializer {
                 continue;
             }
             if (field.getType().isAssignableFrom(List.class)) {
-                List<ChunkData.BlockEntityData> list = new LinkedList<>();
+                List<ClientboundLevelChunkPacketData.BlockEntityInfo> list = new LinkedList<>();
                 JsonArray array = jsonObject.getAsJsonArray("blockEntities");
 
                 for (int i = 0; i < array.size(); i++) {
@@ -113,20 +173,19 @@ public class Deserializer {
         return chunkData;
     }
 
-    private ChunkData.BlockEntityData deserializeBlockEntityData(JsonElement json) throws CommandSyntaxException {
+    private ClientboundLevelChunkPacketData.BlockEntityInfo deserializeBlockEntityData(JsonElement json) throws CommandSyntaxException {
         JsonObject jsonObject = json.getAsJsonObject();
-        StringNbtReader nbtReader = new StringNbtReader(new StringReader(jsonObject.get("nbt").getAsString()));
+        CompoundTag nbtTag = TagParser.parseCompoundFully(jsonObject.get("nbt").getAsString());
 
-        return new ChunkData.BlockEntityData(jsonObject.get("localXz").getAsInt(), jsonObject.get("y").getAsInt(), stringToBlockEntityType(jsonObject.get("type").getAsString()), nbtReader.parseCompound());
+        return new ClientboundLevelChunkPacketData.BlockEntityInfo(jsonObject.get("localXz").getAsInt(), jsonObject.get("y").getAsInt(), stringToBlockEntityType(jsonObject.get("type").getAsString()), nbtTag);
     }
 
-    private Set<NbtCompound> deserializeEntities(JsonArray entityArray) throws CommandSyntaxException {
+    private Set<CompoundTag> deserializeEntities(JsonArray entityArray) throws CommandSyntaxException {
 
-        Set<NbtCompound> set = new HashSet<>();
+        Set<CompoundTag> set = new HashSet<>();
 
         for (JsonElement element : entityArray) {
-            StringNbtReader nbtReader = new StringNbtReader(new StringReader(element.getAsString()));
-            NbtCompound compound = nbtReader.parseCompound();
+            CompoundTag compound = TagParser.parseCompoundFully(element.getAsString());
             set.add(compound);
         }
         return set;
@@ -187,6 +246,6 @@ public class Deserializer {
         return false;
     }
 
-    public record Result(Set<ChunkDataS2CPacket> chunkData, Set<NbtCompound> entities) {}
+    public record Result(Set<ClientboundLevelChunkWithLightPacket> chunkData, Set<CompoundTag> entities) {}
 
 }

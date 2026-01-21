@@ -4,23 +4,27 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import net.minecraft.block.entity.BlockEntityType;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.decoration.DisplayEntity;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.visitor.StringNbtWriter;
-import net.minecraft.network.packet.s2c.play.ChunkBiomeDataS2CPacket;
-import net.minecraft.network.packet.s2c.play.ChunkData;
-import net.minecraft.network.packet.s2c.play.LightData;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.world.chunk.WorldChunk;
 
+import java.util.BitSet;
 import java.util.LinkedList;
 import java.util.List;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.StringTagVisitor;
+import net.minecraft.network.protocol.game.ClientboundLevelChunkPacketData;
+import net.minecraft.network.protocol.game.ClientboundLightUpdatePacketData;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.entity.Display;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.world.level.storage.TagValueOutput;
+import net.minecraft.world.level.storage.ValueOutput;
 
-import static net.minecraft.block.entity.BlockEntityType.*;
+import static net.minecraft.world.level.block.entity.BlockEntityType.*;
 
 public class Serializer {
 
@@ -33,33 +37,34 @@ public class Serializer {
     public JsonElement serializeChunks(int centerX, int centerZ, int chunkRadiusX, int chunkRadiusZ) {
         centerX -= 16 * chunkRadiusX;
         centerZ -= 16 * chunkRadiusZ;
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world != null) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.level != null) {
             JsonObject jsonObject = new JsonObject();
             JsonArray entityArray = new JsonArray();
             JsonArray chunkArray = new JsonArray();
-            Iterable<Entity> entities = client.world.getEntities();
+            Iterable<Entity> entities = client.level.entitiesForRendering();
             for (int i = 0; i < chunkRadiusX*2; i++) {
                 for (int j = 0; j < chunkRadiusZ*2; j++) {
 
                     int p1 = centerX + i*16;
                     int p2 = centerZ+ j*16;
 
-                    WorldChunk worldChunk = client.world.getWorldChunk(new BlockPos(p1, 0,  p2));
+                    LevelChunk worldChunk = client.level.getChunkAt(new BlockPos(p1, 0,  p2));
 
                     ChunkPos chunkPos = worldChunk.getPos();
 
                     for (Entity entity : entities) {
-                        if (entity.getChunkPos().equals(chunkPos)) {
-                            if (entity instanceof DisplayEntity.ItemDisplayEntity) {
-                                NbtCompound compound = new NbtCompound();
-                                compound = entity.writeNbt(compound);
-                                entityArray.add(compound.toString());
+                        if (entity.chunkPosition().equals(chunkPos)) {
+                            if (entity instanceof Display.ItemDisplay) {
+                                TagValueOutput output = TagValueOutput.createWithoutContext(ProblemReporter.DISCARDING);
+                                entity.saveWithoutId(output);
+                                entityArray.add(output.buildResult().toString());
+
                             }
                         }
                     }
 
-                    chunkArray.add(serializeChunk(new LightData(worldChunk.getPos(), client.world.getLightingProvider(), null, null), new ChunkData(worldChunk), chunkPos));
+                    chunkArray.add(serializeChunk(new ClientboundLightUpdatePacketData(worldChunk.getPos(), client.level.getLightEngine(), null, null), new ClientboundLevelChunkPacketData(worldChunk), chunkPos));
 
                 }
             }
@@ -71,26 +76,26 @@ public class Serializer {
         throw new RuntimeException("You need to be in a world to serialize its chunks...");
     }
 
-    private JsonElement serializeChunk(LightData lightData, ChunkData chunkData, ChunkPos pos) {
+    private JsonElement serializeChunk(ClientboundLightUpdatePacketData lightData, ClientboundLevelChunkPacketData chunkData, ChunkPos pos) {
         JsonObject jsonObject = new JsonObject();
 
         jsonObject.addProperty("chunkX", pos.x);
         jsonObject.addProperty("chunkZ", pos.z);
 
-        jsonObject.add("lightData", gson.toJsonTree(lightData));
+        jsonObject.add("lightData", serializeLightUpdatePacket(lightData));
 
         JsonObject jsonChunkObject = new JsonObject();
-        StringNbtWriter nbtWriter = new StringNbtWriter();
-        jsonChunkObject.addProperty("heightmap", nbtWriter.apply(chunkData.heightmap));
+
+        jsonChunkObject.add("heightmaps", gson.toJsonTree(chunkData.getHeightmaps()));
         JsonArray array = new JsonArray();
-        for (byte b : chunkData.sectionsData) {
+        for (byte b : chunkData.buffer) {
             array.add(b);
         }
-        jsonChunkObject.add("sectionsData", array);
+        jsonChunkObject.add("buffer", array);
 
         JsonArray listArray = new JsonArray();
-        for (ChunkData.BlockEntityData blockEntityData : chunkData.blockEntities) {
-            listArray.add(serializeBlockEntityData(blockEntityData, nbtWriter));
+        for (ClientboundLevelChunkPacketData.BlockEntityInfo blockEntityData : chunkData.blockEntitiesData) {
+            listArray.add(serializeBlockEntityData(blockEntityData));
         }
 
         jsonChunkObject.add("blockEntities", listArray);
@@ -99,13 +104,59 @@ public class Serializer {
         return jsonObject;
     }
 
-    private JsonElement serializeBlockEntityData(ChunkData.BlockEntityData src, StringNbtWriter nbtWriter) {
+    private JsonElement serializeLightUpdatePacket(ClientboundLightUpdatePacketData lightData) {
         JsonObject jsonObject = new JsonObject();
 
-        jsonObject.addProperty("localXz", src.localXz);
+        jsonObject.add("skyYMask", serializeBitSet(lightData.getSkyYMask()));
+        jsonObject.add("blockYMask", serializeBitSet(lightData.getBlockYMask()));
+        jsonObject.add("emptySkyYMask", serializeBitSet(lightData.getEmptySkyYMask()));
+        jsonObject.add("emptyBlockYMask", serializeBitSet(lightData.getEmptyBlockYMask()));
+
+        JsonArray skyUpdates = new JsonArray();
+        for (byte[] byteArray : lightData.getSkyUpdates()) {
+            JsonArray inner = new JsonArray();
+            for (byte b : byteArray) {
+                inner.add(b);
+            }
+            skyUpdates.add(inner);
+        }
+        jsonObject.add("skyUpdates", skyUpdates);
+
+        JsonArray blockUpdates = new JsonArray();
+        for (byte[] byteArray : lightData.getBlockUpdates()) {
+            JsonArray inner = new JsonArray();
+            for (byte b : byteArray) {
+                inner.add(b);
+            }
+            skyUpdates.add(inner);
+        }
+        jsonObject.add("blockUpdates", skyUpdates);
+
+        return jsonObject;
+    }
+
+    private JsonArray serializeBitSet(BitSet bitSet) {
+        JsonArray array = new JsonArray();
+        for (long l : bitSet.toLongArray()) {
+            array.add(l);
+        }
+        return array;
+    }
+
+    private JsonElement serializeBlockEntityData(ClientboundLevelChunkPacketData.BlockEntityInfo src) {
+        JsonObject jsonObject = new JsonObject();
+
+        StringTagVisitor nbtWriter = new StringTagVisitor();
+
+        jsonObject.addProperty("localXz", src.packedXZ);
         jsonObject.addProperty("y", src.y);
         jsonObject.addProperty("type", blockEntityTypeToString(src.type));
-        jsonObject.addProperty("nbt", src.nbt != null ? nbtWriter.apply(src.nbt) : "{}");
+        String nbt = "{}";
+        if (src.tag != null) {
+            nbtWriter.visitCompound(src.tag);
+            nbt = nbtWriter.build();
+        }
+        jsonObject.addProperty("nbt", nbt);
 
         return jsonObject;
     }

@@ -3,44 +3,53 @@ package goldenshadow.wynnlimbo.client;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.decoration.DisplayEntity;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.network.ClientConnection;
-import net.minecraft.network.packet.s2c.play.ChunkDataS2CPacket;
-import net.minecraft.registry.Registry;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.world.biome.Biome;
-import net.minecraft.world.chunk.WorldChunk;
-import net.minecraft.world.gen.chunk.ChunkGeneratorSettings;
-import net.minecraft.world.gen.noise.NoiseConfig;
-import org.apache.commons.lang3.mutable.MutableInt;
-import org.apache.logging.log4j.core.time.MutableInstant;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.Holder;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.Connection;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
+import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Display;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.Climate;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.world.level.storage.ValueInput;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
 import java.nio.file.Files;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Predicate;
 
+import static com.mojang.brigadier.arguments.IntegerArgumentType.getInteger;
 import static com.mojang.brigadier.arguments.IntegerArgumentType.integer;
 
 public class WynnlimboClient implements ClientModInitializer {
 
     private static boolean inQueue;
-    private static Set<ChunkDataS2CPacket> chunkPackets;
-    private static Set<NbtCompound> entityNbt;
-    public static Text titleText;
-    public static Text subtitleText;
+    private static Set<ClientboundLevelChunkWithLightPacket> chunkPackets;
+    private static Set<CompoundTag> entityNbt;
+    public static Component titleText;
+    public static Component subtitleText;
 
     public static CustomModelFixer customModelFixer;
 
@@ -49,8 +58,8 @@ public class WynnlimboClient implements ClientModInitializer {
     public void onInitializeClient() {
 
         inQueue = false;
-        titleText = Text.literal("");
-        subtitleText = Text.literal("");
+        titleText = Component.literal("");
+        subtitleText = Component.literal("");
         customModelFixer = new CustomModelFixer();
 
         FabricLoader.getInstance().getModContainer("wynnlimbo").flatMap(wynnlimbo -> wynnlimbo.findPath("assets/wynnlimbo/data.json")).ifPresentOrElse(path -> {
@@ -68,13 +77,17 @@ public class WynnlimboClient implements ClientModInitializer {
         });
 
 
+
+
+
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (isInQueue()) {
                 if (client.player != null) {
                     if (client.player.getY() < 64) {
-                        client.player.setPos(31, 118, 28);
+                        client.player.setPosRaw(31, 118, 28);
                     }
-                    client.player.sendMessage(titleText.copy().append(Text.literal(" §7| ")).append(subtitleText), true);
+                    client.player.displayClientMessage(titleText.copy().append(Component.literal(" §7| ")).append(subtitleText), true);
                 }
             }
         });
@@ -116,7 +129,7 @@ public class WynnlimboClient implements ClientModInitializer {
                             writer.write(serializer.serializeChunks(centerX, centerZ, chunkRadiusX, chunkRadiusZ).toString());
                             writer.flush();
                             writer.close();
-                            context.getSource().sendFeedback(Text.literal("Finished serializing chunks!").formatted(Formatting.GREEN));
+                            context.getSource().sendFeedback(Component.literal("Finished serializing chunks!").withStyle(ChatFormatting.GREEN));
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
@@ -124,6 +137,15 @@ public class WynnlimboClient implements ClientModInitializer {
                     })
             )))));
         }));
+
+        ClientCommandRegistrationCallback.EVENT.register(((dispatcher, registryAccess) -> {
+            dispatcher.register(ClientCommandManager.literal("load_limbo").executes(context -> {
+                    onQueueEnter();
+                    return 0;
+                })
+            );
+        }));
+
          */
 
     }
@@ -131,40 +153,42 @@ public class WynnlimboClient implements ClientModInitializer {
     public static void onQueueEnter() {
         try {
 
-            MinecraftClient client = MinecraftClient.getInstance();
+            Minecraft client = Minecraft.getInstance();
 
-            if (client.player == null || client.world == null || client.getNetworkHandler() == null) {
+            if (client.player == null || client.level == null || client.getConnection() == null) {
                 return;
             }
+            System.out.println("sending chunk packets!");
 
-
-            for (ChunkDataS2CPacket packet : chunkPackets) {
-                ClientConnection.handlePacket(packet, client.getNetworkHandler().getConnection().getPacketListener());
-
+            for (ClientboundLevelChunkWithLightPacket packet : chunkPackets) {
+                System.out.println(packet);
+                Connection.genericsFtw(packet, client.getConnection());
+                System.out.println("grr");
                 //set biome to plains
-                WorldChunk worldChunk = client.world.getWorldChunk(new ChunkPos(packet.getChunkX(), packet.getChunkZ()).getStartPos());
-                Registry<Biome> biomeRegistry = client.world.getRegistryManager().getOrThrow(RegistryKeys.BIOME);
-                Optional<RegistryEntry.Reference<Biome>> biome = biomeRegistry.getEntry(Identifier.of("plains"));
+                LevelChunk worldChunk = client.level.getChunkAt(new ChunkPos(packet.getX(), packet.getZ()).getWorldPosition());
+                Registry<Biome> biomeRegistry = client.level.registryAccess().lookupOrThrow(Registries.BIOME);
+                Optional<Holder.Reference<Biome>> biome = biomeRegistry.get(Identifier.parse("plains"));
                 assert biome.isPresent();
-                worldChunk.populateBiomes((x, y, z, noise) -> biome.get(), null);
+                worldChunk.fillBiomesFromNoise((x, y, z, noise) -> biome.get(), Climate.empty());
             }
 
             entityNbt.forEach(nbtCompound -> {
-                DisplayEntity.ItemDisplayEntity entity = new DisplayEntity.ItemDisplayEntity(EntityType.ITEM_DISPLAY, client.world);
-                entity.readNbt(nbtCompound);
+                Display.ItemDisplay entity = new Display.ItemDisplay(EntityType.ITEM_DISPLAY, client.level);
+                ValueInput input = TagValueInput.create(ProblemReporter.DISCARDING, HolderLookup.Provider.create(client.level.registryAccess().listRegistries()), nbtCompound);
+                entity.load(input);
                 //this is needed as the world was made in a version where negative y coordinates exist.
                 //they however do not in wynn, so everything is shifted up by 64 blocks
                 customModelFixer.fixCustomModel(entity);
-                entity.setPosition(entity.getX(), entity.getY() + 64, entity.getZ());
-                client.world.addEntity(entity);
+                entity.setPos(entity.getX(), entity.getY() + 64, entity.getZ());
+                client.level.addEntity(entity);
             });
-            client.player.setPos(31, 118, 28);
-            client.world.setTime(client.world.getTime(), 6000, true);
-            client.player.removeStatusEffect(StatusEffects.BLINDNESS);
-            client.player.getAttributes().resetToBaseValue(EntityAttributes.MOVEMENT_SPEED); // <- reset to default because otherwise entering queue from a high walkspeed class will make you be really fast
+            client.player.setPosRaw(31, 118, 28);
+            client.level.setTimeFromServer(client.level.getGameTime(), 6000, true);
+            client.player.removeEffect(MobEffects.BLINDNESS);
+            client.player.getAttributes().resetBaseValue(Attributes.MOVEMENT_SPEED); // <- reset to default because otherwise entering queue from a high walkspeed class will make you be really fast
             client.player.setReducedDebugInfo(false);
-            client.inGameHud.setTitle(Text.empty());
-            client.inGameHud.setSubtitle(Text.empty());
+            client.gui.setTitle(Component.empty());
+            client.gui.setSubtitle(Component.empty());
 
             inQueue = true;
 

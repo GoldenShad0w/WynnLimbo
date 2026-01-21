@@ -4,20 +4,19 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.CustomModelDataComponent;
-import net.minecraft.entity.decoration.DisplayEntity;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.Identifier;
-
 import java.io.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.Display;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomModelData;
 
 /**
  * The goal of this class is to dynamically adjust the custom model data and base item of the display entities so that when wynncraft decides to change them, which they seem to do quite often,
@@ -40,14 +39,14 @@ public class CustomModelFixer {
         customModelIds = new HashMap<>();
     }
 
-    public void fixCustomModel(DisplayEntity.ItemDisplayEntity entity) {
+    public void fixCustomModel(Display.ItemDisplay entity) {
         ItemStack itemStack = entity.getItemStack();
         if (itemStack.getCustomName() == null) return;
         String itemName = itemStack.getCustomName().getString();
         itemName = itemName.replace("minecraft:", ""); //remove minecraft: prefix if it exists
         if (customModelIds.containsKey(itemName)) {
             ItemStack newItemStack = new ItemStack(baseItem);
-            newItemStack.set(DataComponentTypes.CUSTOM_MODEL_DATA, new CustomModelDataComponent(List.of(getCustomModelDataValue(itemName)), List.of(), List.of(), List.of()));
+            newItemStack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(List.of(getCustomModelDataValue(itemName)), List.of(), List.of(), List.of()));
             entity.setItemStack(newItemStack);
         }
     }
@@ -91,8 +90,7 @@ public class CustomModelFixer {
         }
 
         if (!correctFile) return false;
-
-        baseItem = Registries.ITEM.get(Identifier.of(extractItemType(entry.getName())));
+        baseItem = BuiltInRegistries.ITEM.getValue(Identifier.parse(extractItemType(entry.getName())));
 
         JsonElement json = JsonParser.parseString(builder.toString());
         JsonArray array = json.getAsJsonObject().getAsJsonArray("overrides");

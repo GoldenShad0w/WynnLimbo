@@ -1,12 +1,12 @@
 accessWidener v2 named
-accessible field net/minecraft/network/packet/s2c/play/ChunkData heightmap Lnet/minecraft/nbt/NbtCompound;
-accessible field net/minecraft/network/packet/s2c/play/ChunkData sectionsData [B
-accessible field net/minecraft/network/packet/s2c/play/ChunkData blockEntities Ljava/util/List;
-accessible class net/minecraft/network/packet/s2c/play/ChunkData$BlockEntityData
-accessible field net/minecraft/network/packet/s2c/play/ChunkData$BlockEntityData localXz I
-accessible field net/minecraft/network/packet/s2c/play/ChunkData$BlockEntityData y I
-accessible field net/minecraft/network/packet/s2c/play/ChunkData$BlockEntityData type Lnet/minecraft/block/entity/BlockEntityType;
-accessible field net/minecraft/network/packet/s2c/play/ChunkData$BlockEntityData nbt Lnet/minecraft/nbt/NbtCompound;
-accessible field net/minecraft/block/entity/BlockEntityType blocks Ljava/util/Set;
-accessible method net/minecraft/network/packet/s2c/play/ChunkData$BlockEntityData <init> (IILnet/minecraft/block/entity/BlockEntityType;Lnet/minecraft/nbt/NbtCompound;)V
-accessible method net/minecraft/network/ClientConnection handlePacket (Lnet/minecraft/network/packet/Packet;Lnet/minecraft/network/listener/PacketListener;)V
+accessible field net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData heightmaps Ljava/util/Map;
+accessible field net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData buffer [B
+accessible class net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData$BlockEntityInfo
+accessible field net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData blockEntitiesData Ljava/util/List;
+accessible field net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData$BlockEntityInfo packedXZ I
+accessible field net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData$BlockEntityInfo y I
+accessible field net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData$BlockEntityInfo type Lnet/minecraft/world/level/block/entity/BlockEntityType;
+accessible field net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData$BlockEntityInfo tag Lnet/minecraft/nbt/CompoundTag;
+accessible method net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData$BlockEntityInfo <init> (IILnet/minecraft/world/level/block/entity/BlockEntityType;Lnet/minecraft/nbt/CompoundTag;)V
+
+accessible method net/minecraft/network/Connection genericsFtw (Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;)V
