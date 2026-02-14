@@ -13,6 +13,12 @@ import java.util.zip.ZipFile;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.CompositePackResources;
+import net.minecraft.server.packs.FilePackResources;
+import net.minecraft.server.packs.PackResources;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.repository.Pack;
+import net.minecraft.server.packs.resources.IoSupplier;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -55,18 +61,18 @@ public class CustomModelFixer {
         return customModelIds.getOrDefault(model, 0f);
     }
 
-    public void buildFix(File serverResourcePack) {
+    public void buildFix(ZipFile zipFile) {
         try {
-            ZipFile zipFile = new ZipFile(serverResourcePack.toString());
-
             // first we try with the file the is being used at time of writing this.
             // If they changed it again, we will go through all other files and find the correct one.
-            boolean done = fillMapIfCorrectFile(zipFile.getEntry(MOST_LIKELY_FILE_NAME), zipFile);
+            InputStream inputStream = zipFile.getInputStream(zipFile.getEntry(MOST_LIKELY_FILE_NAME));
+            boolean done = fillMapIfCorrectFile(inputStream, MOST_LIKELY_FILE_NAME);
             if (done) return;
 
-            for (ZipEntry entry : zipFile.stream().toList()) { // we check all the files in the directory and stop if find the correct one
+            for (ZipEntry entry : zipFile.stream().toList()) { // we check all the files in the directory and stop if we find the correct one
                 if (entry.getName().startsWith(DIR_PATH)) {
-                    done = fillMapIfCorrectFile(entry, zipFile);
+                    inputStream = zipFile.getInputStream(entry);
+                    done = fillMapIfCorrectFile(inputStream, entry.getName());
                     if (done) return;
                 }
             }
@@ -76,8 +82,28 @@ public class CustomModelFixer {
         }
     }
 
-    private boolean fillMapIfCorrectFile(ZipEntry entry, ZipFile zipFile) throws IOException {
-        InputStream inputStream = zipFile.getInputStream(entry);
+    public void buildFixVanilla(File serverResourcePack) {
+        try {
+            ZipFile zipFile = new ZipFile(serverResourcePack.toString());
+            buildFix(zipFile);
+
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to build fix for resource pack custom model ids");
+        }
+    }
+
+    public void buildFixForWynntils(Pack pack) {
+        CompositePackResources resources = (CompositePackResources) pack.open();
+        FilePackResources filePackResources = (FilePackResources) resources.primaryPackResources;
+        ZipFile zipFile = filePackResources.zipFileAccess.getOrCreateZipFile();
+        if (zipFile == null) {
+            throw new RuntimeException("Failed to build fix for resource pack custom model ids");
+        }
+        buildFix(zipFile);
+        resources.close();
+    }
+
+    private boolean fillMapIfCorrectFile(InputStream inputStream, String entryName) throws IOException {
         InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
         BufferedReader reader = new BufferedReader(inputStreamReader);
 
@@ -90,7 +116,7 @@ public class CustomModelFixer {
         }
 
         if (!correctFile) return false;
-        baseItem = BuiltInRegistries.ITEM.getValue(Identifier.parse(extractItemType(entry.getName())));
+        baseItem = BuiltInRegistries.ITEM.getValue(Identifier.parse(extractItemType(entryName)));
 
         JsonElement json = JsonParser.parseString(builder.toString());
         JsonArray array = json.getAsJsonObject().getAsJsonArray("overrides");

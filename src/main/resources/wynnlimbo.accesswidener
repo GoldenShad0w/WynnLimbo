@@ -8,5 +8,8 @@ accessible field net/minecraft/network/protocol/game/ClientboundLevelChunkPacket
 accessible field net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData$BlockEntityInfo type Lnet/minecraft/world/level/block/entity/BlockEntityType;
 accessible field net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData$BlockEntityInfo tag Lnet/minecraft/nbt/CompoundTag;
 accessible method net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData$BlockEntityInfo <init> (IILnet/minecraft/world/level/block/entity/BlockEntityType;Lnet/minecraft/nbt/CompoundTag;)V
+accessible field net/minecraft/server/packs/FilePackResources zipFileAccess Lnet/minecraft/server/packs/FilePackResources$SharedZipFileAccess;
+accessible method net/minecraft/server/packs/FilePackResources$SharedZipFileAccess getOrCreateZipFile ()Ljava/util/zip/ZipFile;
+accessible field net/minecraft/server/packs/CompositePackResources primaryPackResources Lnet/minecraft/server/packs/PackResources;
 
 accessible method net/minecraft/network/Connection genericsFtw (Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;)V

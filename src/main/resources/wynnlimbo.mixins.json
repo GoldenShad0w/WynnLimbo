@@ -3,10 +3,13 @@
   "minVersion": "0.8",
   "package": "goldenshadow.wynnlimbo.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [],
+  "mixins": [
+    "wynntils.ResourcePackServiceMixin"
+  ],
   "client": [
     "ClientPlayNetworkHandlerMixin",
-    "ServerResourcePackLoaderMixin"
+    "ServerResourcePackLoaderMixin",
+    "wynntils.CustomLoadingScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1

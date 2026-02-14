@@ -20,6 +20,6 @@ public class ServerResourcePackLoaderMixin {
         packs.stream()
                 .map(PackReloadConfig.IdAndPath::path)
                 .map(Path::toFile)
-                .forEach(WynnlimboClient.customModelFixer::buildFix);
+                .forEach(WynnlimboClient.customModelFixer::buildFixVanilla);
     }
 }

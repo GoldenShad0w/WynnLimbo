@@ -158,12 +158,9 @@ public class WynnlimboClient implements ClientModInitializer {
             if (client.player == null || client.level == null || client.getConnection() == null) {
                 return;
             }
-            System.out.println("sending chunk packets!");
 
             for (ClientboundLevelChunkWithLightPacket packet : chunkPackets) {
-                System.out.println(packet);
                 Connection.genericsFtw(packet, client.getConnection());
-                System.out.println("grr");
                 //set biome to plains
                 LevelChunk worldChunk = client.level.getChunkAt(new ChunkPos(packet.getX(), packet.getZ()).getWorldPosition());
                 Registry<Biome> biomeRegistry = client.level.registryAccess().lookupOrThrow(Registries.BIOME);
