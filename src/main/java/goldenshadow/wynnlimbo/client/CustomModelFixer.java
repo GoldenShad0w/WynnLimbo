@@ -1,13 +1,11 @@
 package goldenshadow.wynnlimbo.client;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import java.io.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import net.minecraft.core.component.DataComponents;
@@ -15,10 +13,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.CompositePackResources;
 import net.minecraft.server.packs.FilePackResources;
-import net.minecraft.server.packs.PackResources;
-import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.Pack;
-import net.minecraft.server.packs.resources.IoSupplier;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -33,10 +28,16 @@ import net.minecraft.world.item.component.CustomModelData;
  */
 public class CustomModelFixer {
 
-    private static final String DIR_PATH = "assets/minecraft/models/item/";
-    private static final String MOST_LIKELY_FILE_NAME = "assets/minecraft/models/item/potion.json";
+    private static final String DIR_PATH = "assets/minecraft/items/";
+    private static final String MOST_LIKELY_FILE_NAME = "assets/minecraft/items/potion.json";
 
     private static final String CONTROL_PATTERN = "item/wynn/skin";
+
+    private static final Pattern ITEM_PATTERN =
+            Pattern.compile("item/wynn/([^\"\\\\]+)\"");
+
+    private static final Pattern THRESHOLD_PATTERN =
+            Pattern.compile("\"threshold\"\\s*:\\s*(\\d+)");
 
     private final Map<String, Float> customModelIds;
     private Item baseItem = null;
@@ -118,18 +119,22 @@ public class CustomModelFixer {
         if (!correctFile) return false;
         baseItem = BuiltInRegistries.ITEM.getValue(Identifier.parse(extractItemType(entryName)));
 
-        JsonElement json = JsonParser.parseString(builder.toString());
-        JsonArray array = json.getAsJsonObject().getAsJsonArray("overrides");
-        for (JsonElement element : array) {
-            JsonObject obj = element.getAsJsonObject();
-            if (obj.has("predicate")) {
-                JsonObject predicate = obj.getAsJsonObject("predicate");
-                if (predicate.has("custom_model_data")) {
-                    int id = predicate.get("custom_model_data").getAsInt();
-                    customModelIds.put(obj.get("model").getAsString(), (float) id);
-                }
+        String input = builder.toString();
+        Matcher itemMatcher = ITEM_PATTERN.matcher(input);
+
+        while (itemMatcher.find()) {
+            String fullItemPath = "item/wynn/" + itemMatcher.group(1);
+
+
+            Matcher thresholdMatcher = THRESHOLD_PATTERN.matcher(input);
+            thresholdMatcher.region(itemMatcher.end(), input.length());
+
+            if (thresholdMatcher.find()) {
+                int threshold = Integer.parseInt(thresholdMatcher.group(1));
+                customModelIds.put(fullItemPath, (float) threshold);
             }
         }
+
         return true;
     }
 
