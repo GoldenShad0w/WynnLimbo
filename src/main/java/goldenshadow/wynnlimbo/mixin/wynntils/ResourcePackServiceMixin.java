@@ -23,7 +23,7 @@ public abstract class ResourcePackServiceMixin {
     @Shadow
     protected abstract Pack getPreloadedPack();
 
-    @Inject(at = @At("HEAD"), method = "onServerResourcePackLoad(Lcom/wynntils/mc/event/ServerResourcePackEvent$Load;)V")
+    @Inject(at = @At("TAIL"), method = "onServerResourcePackLoad(Lcom/wynntils/mc/event/ServerResourcePackEvent$Load;)V")
     private void onServerResourcePackLoad(ServerResourcePackEvent.Load event, CallbackInfo ci) {
         if (!serverHasResourcePack) {
             Pack pack = getPreloadedPack();
